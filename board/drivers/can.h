@@ -344,15 +344,35 @@ void can_rx(uint8_t can_number) {
     to_push.RDLR = CAN->sFIFOMailBox[0].RDLR;
     to_push.RDHR = CAN->sFIFOMailBox[0].RDHR;
 
-    // forwarding (panda only)
+    // Chevy Volt setup with Panda CAN forwarding:
+    // Panda is plugged into OBDII port and forwards some messages from
+    // powertrain CAN bus to object bus, and messages that openpilot sends
+    // on object bus to either powertrain, or to chassis bus.
     #ifdef PANDA
-      if (can_forwarding[bus_number] != -1) {
+      uint32_t addr;
+      if (to_push.RIR & 4) {
+        // Extended
+        addr = to_push.RIR >> 3;
+      } else {
+        // Normal
+        addr = to_push.RIR >> 21;
+      }
+
+      int dst_can_idx = -1;
+      if (bus_number == 1 && (addr == 0x180 || addr == 0x409 || addr == 0x2cb || addr == 0x370)) {
+        dst_can_idx = 0;
+      } else if (bus_number == 1 && addr == 0x315) {
+        dst_can_idx = 2;
+      } else if (bus_number == 0 && (addr == 189 || addr == 190 || addr == 241 || addr == 298 || addr == 309 || addr == 320 || addr == 388 || addr == 417 || addr == 481 || addr == 485 || addr == 840 || addr == 842)) {
+        dst_can_idx = 1;
+      }
+      if (dst_can_idx != -1) {
         CAN_FIFOMailBox_TypeDef to_send;
         to_send.RIR = to_push.RIR | 1; // TXRQ
         to_send.RDTR = to_push.RDTR;
         to_send.RDLR = to_push.RDLR;
         to_send.RDHR = to_push.RDHR;
-        can_send(&to_send, can_forwarding[bus_number]);
+        can_send(&to_send, dst_can_idx);
       }
     #endif
 
