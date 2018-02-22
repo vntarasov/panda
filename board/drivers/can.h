@@ -363,6 +363,19 @@ void can_rx(uint8_t can_number) {
         dst_can_idx = 0;
       } else if (bus_number == 1 && addr == 0x315) {
         dst_can_idx = 2;
+        
+      // Powertrain CAN bus
+      // 189 = Regen Paddle
+      // 190 = Accelerator Position
+      // 241 = Brake Pedal Position
+      // 298 = Door Status
+      // 309 = Park/Neutral/Drive/Reverse
+      // 320 = Turn Signals
+      // 388 = Hands off steering detection / Torque status
+      // 481 = Steering wheel buttons
+      // 485 = Steering wheel angle
+      // 840 = Wheel speed (front)
+      // 842 = Wheel speed (rear)
       } else if (bus_number == 0 && (addr == 189 || addr == 190 || addr == 241 || addr == 298 || addr == 309 || addr == 320 || addr == 388 || addr == 417 || addr == 481 || addr == 485 || addr == 840 || addr == 842)) {
         dst_can_idx = 1;
       }
