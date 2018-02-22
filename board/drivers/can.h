@@ -360,20 +360,20 @@ void can_rx(uint8_t can_number) {
 
       int dst_can_idx = -1;
     
-      // Powertrain CAN bus (??)
+      // Received on GMLAN (from Voltboard VT)
       // 0x180 (384)  = LKA Steering command
       // 0x409 (1033) = ASCM Keep Alive
       // 0x2cb (715)  = Gas Regen Command
       // 0x370 (880)  = Cruise Control Status
       if (bus_number == 1 && (addr == 0x180 || addr == 0x409 || addr == 0x2cb || addr == 0x370)) {
-        dst_can_idx = 0;
+        dst_can_idx = 0; // Sent to Powertrain CAN
         
-      // Chassis CAN bus (??)
-      // 0x315 (789) = Friction Brake command
+      // Received on GMLAN (from Voltboard VT)
+      // 0x315 (789) = Friction Brake command (normally Chassis CAN bus command)
       } else if (bus_number == 1 && addr == 0x315) {
-        dst_can_idx = 2;
+        dst_can_idx = 2; // Sent to Chassis CAN
         
-      // Powertrain CAN bus (??)
+      // Received on Powertrain CAN bus
       // 189 = Regen Paddle
       // 190 = Accelerator Position
       // 241 = Brake Pedal Position
@@ -386,7 +386,7 @@ void can_rx(uint8_t can_number) {
       // 840 = Wheel speed (front)
       // 842 = Wheel speed (rear)
       } else if (bus_number == 0 && (addr == 189 || addr == 190 || addr == 241 || addr == 298 || addr == 309 || addr == 320 || addr == 388 || addr == 417 || addr == 481 || addr == 485 || addr == 840 || addr == 842)) {
-        dst_can_idx = 1;
+        dst_can_idx = 1; // Sent to GMLAN (to Voltboard VT)
       }
       if (dst_can_idx != -1) {
         CAN_FIFOMailBox_TypeDef to_send;
