@@ -359,12 +359,21 @@ void can_rx(uint8_t can_number) {
       }
 
       int dst_can_idx = -1;
+    
+      // Powertrain CAN bus (??)
+      // 0x180 (384)  = LKA Steering command
+      // 0x409 (1033) = ASCM Keep Alive
+      // 0x2cb (715)  = Gas Regen Command
+      // 0x370 (880)  = Cruise Control Status
       if (bus_number == 1 && (addr == 0x180 || addr == 0x409 || addr == 0x2cb || addr == 0x370)) {
         dst_can_idx = 0;
+        
+      // Chassis CAN bus (??)
+      // 0x315 (789) = Friction Brake command
       } else if (bus_number == 1 && addr == 0x315) {
         dst_can_idx = 2;
         
-      // Powertrain CAN bus
+      // Powertrain CAN bus (??)
       // 189 = Regen Paddle
       // 190 = Accelerator Position
       // 241 = Brake Pedal Position
