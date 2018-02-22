@@ -358,9 +358,9 @@ void can_rx(uint8_t can_number) {
         addr = to_push.RIR >> 21;
       }
 
-      int dst_can_idx = -1;
+      int dst_can_idx = -1; // default = no forward
     
-      // Received on GMLAN (from Voltboard VT)
+      // Received on GMLAN, bus=1 (from Voltboard VT)
       // 0x180 (384)  = LKA Steering command
       // 0x409 (1033) = ASCM Keep Alive
       // 0x2cb (715)  = Gas Regen Command
@@ -368,12 +368,12 @@ void can_rx(uint8_t can_number) {
       if (bus_number == 1 && (addr == 0x180 || addr == 0x409 || addr == 0x2cb || addr == 0x370)) {
         dst_can_idx = 0; // Sent to Powertrain CAN
         
-      // Received on GMLAN (from Voltboard VT)
+      // Received on GMLAN, bus=1 (from Voltboard VT)
       // 0x315 (789) = Friction Brake command (normally Chassis CAN bus command)
       } else if (bus_number == 1 && addr == 0x315) {
         dst_can_idx = 2; // Sent to Chassis CAN
         
-      // Received on Powertrain CAN bus
+      // Received on Powertrain CAN, bus=0
       // 189 = Regen Paddle
       // 190 = Accelerator Position
       // 241 = Brake Pedal Position
