@@ -234,12 +234,60 @@ static int gm_ign_hook() {
   return gm_ignition_started;
 }
 
+static int gm_fwd_hook(int bus_num, CAN_FIFOMailBox_TypeDef *to_fwd) {
+
+  // Chevy Volt setup with Panda CAN forwarding:
+  // Panda is plugged into OBDII port and forwards some messages from
+  // powertrain CAN bus to object bus, and messages that openpilot sends
+  // on object bus to either powertrain, or to chassis bus.
+  uint32_t addr;
+  if (to_fwd->RIR & 4) {
+    // Extended
+    addr = to_fwd->RIR >> 3;
+  } else {
+    // Normal
+    addr = to_fwd->RIR >> 21;
+  }
+
+  // Received on Object CAN, bus=1 (from Voltboard VT)
+  // 0x180 (384)  = LKA Steering command
+  // 0x409 (1033) = ASCM Keep Alive
+  // 0x2cb (715)  = Gas Regen Command
+  // 0x370 (880)  = Cruise Control Status
+  if (bus_num == 1 && (addr == 0x180 || addr == 0x409 || addr == 0x2cb || addr == 0x370)) {
+    return 0;
+
+  // Received on Object CAN, bus=1 (from Voltboard VT)
+  // 0x315 (789) = Friction Brake command (normally Chassis CAN bus command)
+  } else if (bus_num == 1 && addr == 0x315) {
+    return 2;
+
+  // Received on Powertrain CAN, bus=0
+  // 189 = Regen Paddle
+  // 241 = Brake Pedal Position
+  // 298 = Door Status
+  // 309 = Park/Neutral/Drive/Reverse
+  // 320 = Turn Signals
+  // 388 = Hands off steering detection / Torque status
+  // 417 = Accelerator pedal
+  // 481 = Steering wheel buttons
+  // 485 = Steering wheel angle
+  // 497 = Car ignition on/off
+  // 840 = Wheel speed (front)
+  // 842 = Wheel speed (rear)
+  } else if (bus_num == 0 && (addr == 189 || addr == 241 || addr == 298 || addr == 309 || addr == 320 || addr == 388 || addr == 417 || addr == 481 || addr == 485 || addr == 497 || addr == 840 || addr == 842)) {
+    return 1;
+  }
+
+  return -1;
+}
+
 const safety_hooks gm_hooks = {
   .init = gm_init,
   .rx = gm_rx_hook,
   .tx = gm_tx_hook,
   .tx_lin = nooutput_tx_lin_hook,
   .ignition = gm_ign_hook,
-  .fwd = nooutput_fwd_hook,
+  .fwd = gm_fwd_hook,
 };
 

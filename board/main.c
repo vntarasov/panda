@@ -558,9 +558,11 @@ int main() {
   // enable USB
   usb_init();
 
-  // default to silent mode to prevent issues with Ford
-  safety_set_mode(SAFETY_NOOUTPUT, 0);
-  can_silent = ALL_CAN_SILENT;
+  // Chevy Volt setup with Panda CAN forwarding:
+  // Panda does not have a USB connection to openpilot
+  // to configure it.
+  safety_set_mode(SAFETY_GM, 0);
+  can_silent = ALL_CAN_LIVE;
   can_init_all();
 
   adc_init();
