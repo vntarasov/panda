@@ -3,6 +3,8 @@
 
 // ********************* includes *********************
 
+#define GM_GIRAFFE
+
 #include "libc.h"
 #include "safety.h"
 #include "provision.h"
@@ -559,7 +561,12 @@ int main() {
   usb_init();
 
   // default to silent mode to prevent issues with Ford
+#ifdef GM_GIRAFFE
+  // To use GM ignition code for radar power
+  safety_set_mode(SAFETY_GM, 0);
+#else
   safety_set_mode(SAFETY_NOOUTPUT, 0);
+#endif
   can_silent = ALL_CAN_SILENT;
   can_init_all();
 
@@ -661,8 +668,15 @@ int main() {
       puth(can_tx2_q.r_ptr); puts(" "); puth(can_tx2_q.w_ptr); puts("\n");
     #endif
 
+    #ifdef GM_GIRAFFE
+    // Power the radar when the car is on.
+    int radar_on = safety_ignition_hook();
+    set_gpio_output(GPIOB, 12, radar_on);
+    set_led(LED_GREEN, radar_on);
+    #else
     // set green LED to be controls allowed
     set_led(LED_GREEN, controls_allowed);
+    #endif
 
     // blink the red LED
     int div_mode = ((usb_power_mode == USB_POWER_DCP) ? 4 : 1);
