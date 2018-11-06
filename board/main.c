@@ -4,6 +4,7 @@
 // ********************* includes *********************
 
 #define GM_GIRAFFE
+#define GM_GIRAFFE_LKA_LED
 
 #include "libc.h"
 #include "safety.h"
@@ -26,14 +27,18 @@
 // ***************************** fan *****************************
 
 void fan_init() {
+#ifndef GM_GIRAFFE_LKA_LED
   // timer for fan PWM
   TIM3->CCMR2 = TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1;
   TIM3->CCER = TIM_CCER_CC3E;
   timer_init(TIM3, 10);
+#endif
 }
 
 void fan_set_speed(int fan_speed) {
+#ifndef GM_GIRAFFE_LKA_LED
   TIM3->CCR3 = fan_speed;
+#endif
 }
 
 // ********************* serial debugging *********************

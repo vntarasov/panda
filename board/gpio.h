@@ -306,7 +306,11 @@ void gpio_init() {
 #endif
 
   // C8: FAN aka TIM3_CH4
+#ifdef GM_GIRAFFE_LKA_LED
+  set_gpio_mode(GPIOC, 8, MODE_OUTPUT);
+#else
   set_gpio_alternate(GPIOC, 8, GPIO_AF2_TIM3);
+#endif
 
   // turn off LEDs and set mode
   set_led(LED_RED, 0);

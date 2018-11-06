@@ -30,6 +30,8 @@ int gm_desired_torque_last = 0;
 uint32_t gm_ts_last = 0;
 struct sample_t gm_torque_driver;         // last few driver torques measured
 
+void set_gpio_output(GPIO_TypeDef *GPIO, int pin, int val);
+
 static void gm_rx_hook(CAN_FIFOMailBox_TypeDef *to_push) {
   int bus_number = (to_push->RDTR >> 4) & 0xFF;
   uint32_t addr;
@@ -43,7 +45,12 @@ static void gm_rx_hook(CAN_FIFOMailBox_TypeDef *to_push) {
     addr = to_push->RIR >> 21;
   }
 
-  if (addr == 388) {
+  if (addr == 388 && bus_number == 0) {
+#ifdef GM_GIRAFFE_LKA_LED
+    int delivered_status = ((to_push->RDLR) >> 3) & 7;
+    int active = delivered_status == 1;
+    set_gpio_output(GPIOC, 8, active);
+#endif
     int torque_driver_new = (((to_push->RDHR >> 16) & 0x7) << 8) | ((to_push->RDHR >> 24) & 0xFF);
     torque_driver_new = to_signed(torque_driver_new, 11);
     // update array of samples
