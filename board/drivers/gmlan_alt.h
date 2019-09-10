@@ -3,6 +3,14 @@
 #define GMLAN_HIGH 0 //0 is high on bus (dominant)
 #define GMLAN_LOW 1 //1 is low on bus
 
+// Excluding debug strings to save on firmware size
+// #define GMLAN_DEBUG
+#ifdef GMLAN_DEBUG
+#define gmlan_puts(a) puts(a)
+#else
+#define gmlan_puts(a)
+#endif
+
 #define DISABLED -1
 #define BITBANG 0
 #define GPIO_SWITCH 1
@@ -10,6 +18,12 @@
 #define MAX_BITS_CAN_PACKET (200)
 
 int gmlan_alt_mode = DISABLED;
+
+// Ring buffer to handle simultaneous sends
+#define CAPACITY 4
+int pending_size = 0;
+int pending_next_free = 0;
+CAN_FIFOMailBox_TypeDef pending[CAPACITY];
 
 // returns out_len
 int do_bitstuff(char *out, char *in, int in_len) {
@@ -156,11 +170,6 @@ void gmlan_switch_init(int timeout_enable) {
 
 void set_gmlan_digital_output(int to_set) {
   inverted_bit_to_send = to_set;
-  /*
-  puts("Writing ");
-  puth(inverted_bit_to_send);
-  puts("\n");
-  */
 }
 
 void reset_gmlan_switch_timeout(void) {
@@ -187,6 +196,8 @@ int gmlan_fail_count = 0;
 #define REQUIRED_SILENT_TIME 10
 #define MAX_FAIL_COUNT 10
 
+bool bitbang_gmlan(CAN_FIFOMailBox_TypeDef *to_bang);
+
 void TIM4_IRQHandler(void) {
   if (gmlan_alt_mode == BITBANG) {
     if ((TIM4->SR & TIM_SR_UIF) && (gmlan_sendmax != -1)) {
@@ -203,12 +214,14 @@ void TIM4_IRQHandler(void) {
         if ((gmlan_sending > 0) &&  // not first bit
            ((read == 0) && (pkt_stuffed[gmlan_sending-1] == 1)) &&  // bus wrongly dominant
            (gmlan_sending != (gmlan_sendmax - 11))) {    //not ack bit
+#ifdef GMLAN_DEBUG
           puts("GMLAN ERR: bus driven at ");
           puth(gmlan_sending);
           puts("\n");
+#endif
           retry = 1;
         } else if ((read == 1) && (gmlan_sending == (gmlan_sendmax - 11))) {    // recessive during ACK
-          puts("GMLAN ERR: didn't recv ACK\n");
+          gmlan_puts("GMLAN ERR: didn't recv ACK\n");
           retry = 1;
         } else {
           // do not retry
@@ -220,7 +233,7 @@ void TIM4_IRQHandler(void) {
           gmlan_sending = 0;
           gmlan_fail_count++;
           if (gmlan_fail_count == MAX_FAIL_COUNT) {
-            puts("GMLAN ERR: giving up send\n");
+            gmlan_puts("GMLAN ERR: giving up send\n");
             gmlan_send_ok = false;
           }
         } else {
@@ -234,6 +247,11 @@ void TIM4_IRQHandler(void) {
         TIM4->DIER = 0;  // no update interrupt
         TIM4->CR1 = 0;   // disable timer
         gmlan_sendmax = -1;   // exit
+
+        if (pending_size > 0) {
+          int next = (pending_next_free + CAPACITY - pending_size--) % CAPACITY;
+          bitbang_gmlan(&pending[next]);
+        }
       }
     }
     TIM4->SR = 0;
@@ -266,7 +284,17 @@ void TIM4_IRQHandler(void) {
 }
 
 bool bitbang_gmlan(CAN_FIFOMailBox_TypeDef *to_bang) {
-  gmlan_send_ok = true;
+  if (gmlan_sendmax != -1) {
+    if (pending_size < CAPACITY) {
+      pending[pending_next_free++] = *to_bang;
+      pending_next_free %= CAPACITY;
+      ++pending_size;
+      gmlan_send_ok = true;
+    } else {
+      gmlan_puts("GMLAN ERR: dropped send");
+    }
+    return gmlan_send_ok;
+  }
   gmlan_alt_mode = BITBANG;
 
   if (gmlan_sendmax == -1) {
