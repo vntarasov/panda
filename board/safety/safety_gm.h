@@ -18,12 +18,15 @@ const int GM_DRIVER_TORQUE_FACTOR = 4;
 const int GM_MAX_GAS = 3072;
 const int GM_MAX_REGEN = 1404;
 const int GM_MAX_BRAKE = 350;
+// Go silent for 1 minute on car controls from stock ECUs
+const int GM_SILENT_INTERVAL = 60 * 1000 * 1000;
 
 int gm_brake_prev = 0;
 int gm_gas_prev = 0;
 bool gm_moving = false;
-// silence everything if stock car control ECUs are still online
-bool gm_ascm_detected = 0;
+bool gm_go_passive = 0;
+int gm_stock_control_ts = 0;
+
 bool gm_ignition_started = 0;
 int gm_rt_torque_last = 0;
 int gm_desired_torque_last = 0;
@@ -33,6 +36,10 @@ struct sample_t gm_torque_driver;         // last few driver torques measured
 static void gm_rx_hook(CAN_FIFOMailBox_TypeDef *to_push) {
   int bus_number = GET_BUS(to_push);
   int addr = GET_ADDR(to_push);
+  if (bus_number != 0) {
+    // Only monitor powertrain bus
+    return;
+  }
 
   if (addr == 388) {
     int torque_driver_new = ((GET_BYTE(to_push, 6) & 0x7) << 8) | GET_BYTE(to_push, 7);
@@ -41,9 +48,8 @@ static void gm_rx_hook(CAN_FIFOMailBox_TypeDef *to_push) {
     update_sample(&gm_torque_driver, torque_driver_new);
   }
 
-  if ((addr == 0x1F1) && (bus_number == 0)) {
-    //Bit 5 should be ignition "on"
-    //Backup plan is Bit 2 (accessory power)
+  if (addr == 0x1F1) {
+    // Bit 5 is ignition "on"
     bool ign = (GET_BYTE(to_push, 0) & 0x20) != 0;
     gm_ignition_started = ign;
   }
@@ -58,9 +64,20 @@ static void gm_rx_hook(CAN_FIFOMailBox_TypeDef *to_push) {
   // on powertrain bus.
   // 384 = ASCMLKASteeringCmd
   // 715 = ASCMGasRegenCmd
-  if ((bus_number == 0) && ((addr == 384) || (addr == 715))) {
-    gm_ascm_detected = 1;
+  if ((addr == 384) || (addr == 715)) {
+    gm_go_passive = 1;
+    gm_stock_control_ts = TIM2->CNT;
     controls_allowed = 0;
+  }
+
+  // Eventually go back to active without
+  // requiring Panda reboot.
+  if (gm_go_passive) {
+    uint32_t ts_elapsed = get_ts_elapsed(TIM2->CNT, gm_stock_control_ts);
+    if (ts_elapsed > GM_SILENT_INTERVAL) {
+      gm_go_passive = 0;
+      controls_allowed = 0;
+    }
   }
 
   // ACC steering wheel buttons
@@ -123,7 +140,7 @@ static int gm_tx_hook(CAN_FIFOMailBox_TypeDef *to_send) {
   int tx = 1;
 
   // There can be only one! (ASCM)
-  if (gm_ascm_detected) {
+  if (gm_go_passive) {
     tx = 0;
   }
 
