@@ -29,6 +29,8 @@ int gm_rt_torque_last = 0;
 int gm_desired_torque_last = 0;
 uint32_t gm_ts_last = 0;
 struct sample_t gm_torque_driver;         // last few driver torques measured
+int started_override = 0;
+int lkas_prev = 0;
 
 static void gm_rx_hook(CAN_FIFOMailBox_TypeDef *to_push) {
   int bus_number = GET_BUS(to_push);
@@ -76,6 +78,17 @@ static void gm_rx_hook(CAN_FIFOMailBox_TypeDef *to_push) {
         break;
       default:
         break;  // any other button is irrelevant
+    }
+  }
+
+  // "start" the car by pressing LKAS button
+  if (addr == 481) {
+    int lkas = (to_push->RDLR >> 23) & 1;
+    if (lkas != lkas_prev) {
+      if (lkas) {
+        started_override = !started_override;
+      }
+      lkas_prev = lkas;
     }
   }
 
@@ -228,7 +241,7 @@ static void gm_init(int16_t param) {
 }
 
 static int gm_ign_hook(void) {
-  return gm_ignition_started;
+  return gm_ignition_started && started_override;
 }
 
 // All sending is disallowed.
